@@ -1,73 +1,102 @@
 package xhttp
 
 import (
+	"fmt"
 	"net/http"
 )
 
-// MockClient is a mock implementation of the [HTTPClient] interface for testing purposes.
-// It records the arguments of the last call to allow verification in tests.
+// Call represents the arguments of an HTTP call recorded by the [MockClient].
+type Call struct {
+	Method  string
+	URL     string
+	Options HTTPOptions
+}
+
+// mockResponse encapsulates the expected return values for a mocked call.
+type mockResponse struct {
+	res *http.Response
+	err error
+}
+
+// MockClient is a mock implementation of the [HTTPClient] interface.
+// It records all calls in a history slice and allows O(1) response mapping.
 type MockClient struct {
-	CalledURL     string
-	CalledMethod  string
-	CalledOptions HTTPOptions
-	Response      *http.Response
-	Err           error
+	Calls           []Call
+	mappedResponses map[string]mockResponse
+	DefaultResponse *http.Response
+	DefaultErr      error
 }
 
-// NewMockClient returns a mock implementation of the [HTTPClient] interface for testing purposes.
-func NewMockClient(response *http.Response, err error) *MockClient {
-	return &MockClient{Response: response, Err: err}
+// NewMockClient returns a new instance of [MockClient].
+// If a default response or error is provided, it will be used when no specific mapping exists.
+func NewMockClient(defaultRes *http.Response, defaultErr error) *MockClient {
+	return &MockClient{
+		Calls:           []Call{},
+		mappedResponses: make(map[string]mockResponse),
+		DefaultResponse: defaultRes,
+		DefaultErr:      defaultErr,
+	}
 }
 
-// Get records the GET request and returns the pre-defined [http.Response] and error.
+// MapResponse sets a specific response for a method and URL combination (O(1) lookup).
+func (m *MockClient) MapResponse(method, url string, res *http.Response, err error) {
+	key := fmt.Sprintf("%s:%s", method, url)
+	m.mappedResponses[key] = mockResponse{res: res, err: err}
+}
+
+// Clear resets the history of calls recorded by the [MockClient].
+func (m *MockClient) Clear() {
+	m.Calls = []Call{}
+}
+
 func (m *MockClient) Get(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodGet, url, options)
 }
 
-// Post records the POST request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Post(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodPost, url, options)
 }
 
-// Put records the PUT request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Put(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodPut, url, options)
 }
 
-// Patch records the PATCH request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Patch(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodPatch, url, options)
 }
 
-// Delete records the DELETE request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Delete(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodDelete, url, options)
 }
 
-// Options records the OPTIONS request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Options(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodOptions, url, options)
 }
 
-// Head records the HEAD request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Head(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodHead, url, options)
 }
 
-// Connect records the CONNECT request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Connect(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodConnect, url, options)
 }
 
-// Trace records the TRACE request and returns the pre-defined [http.Response] and error.
 func (m *MockClient) Trace(url string, options HTTPOptions) (*http.Response, error) {
 	return m.recordCall(http.MethodTrace, url, options)
 }
 
-// recordCall populates the [MockClient] fields with the call data.
+// recordCall logs the call into the history and returns the mapped or default response.
 func (m *MockClient) recordCall(method, url string, options HTTPOptions) (*http.Response, error) {
-	m.CalledMethod = method
-	m.CalledURL = url
-	m.CalledOptions = options
-	return m.Response, m.Err
+	m.Calls = append(m.Calls, Call{
+		Method:  method,
+		URL:     url,
+		Options: options,
+	})
+
+	key := fmt.Sprintf("%s:%s", method, url)
+	if mapped, ok := m.mappedResponses[key]; ok {
+		return mapped.res, mapped.err
+	}
+
+	return m.DefaultResponse, m.DefaultErr
 }
