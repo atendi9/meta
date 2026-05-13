@@ -105,3 +105,18 @@ func CreateMessageTemplate(
 	}
 	return nil
 }
+
+func DeleteMessageTemplate(api *Client, name string) error {
+	url := api.Endpoint(api.senderID + "/message_templates")
+	res, err := api.Delete(url, &xhttp.Options{
+		QueryParams: []xhttp.HTTPData{
+			&xhttp.QueryParam{Key: "name", Value: name},
+		},
+		Headers: api.Headers("application/json"),
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	return nil
+}

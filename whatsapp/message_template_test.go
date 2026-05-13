@@ -163,3 +163,45 @@ func TestCreateMessageTemplate_EmptyBody(t *testing.T) {
 	err := CreateMessageTemplate(api, fields)
 	assert.NoError(t, err)
 }
+
+func TestDeleteMessageTemplate_Success(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"success": true}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+			AccessToken: "valid_token",
+		},
+	}
+
+	templateName := "old_promotion_template"
+	err := DeleteMessageTemplate(api, templateName)
+
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 1, mockClient.Calls)
+	assert.Equal(t, http.MethodDelete, mockClient.Calls[0].Method)
+
+	expectedURL := api.Endpoint(api.senderID + "/message_templates")
+	assert.Equal(t, expectedURL, mockClient.Calls[0].URL)
+}
+
+func TestDeleteMessageTemplate_Error(t *testing.T) {
+	mockClient := xhttp.NewMockClient(nil, io.ErrClosedPipe)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	err := DeleteMessageTemplate(api, "any_template")
+	assert.Error(t, err)
+}
