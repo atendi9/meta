@@ -26,7 +26,7 @@ func SchedulingTemplate(
 	localTime := opts.StartTime.In(loc)
 	m := MessageTemplate(h, xjson.JSON{
 		"name":     opts.TemplateName,
-		"language": xjson.JSON{"code": PortugueseBrazil},
+		"language": xjson.JSON{"code": opts.Lang},
 		"components": []xjson.JSON{
 			{
 				"type": "body",
