@@ -75,7 +75,6 @@ func getLocalizedGreeting(lang Lang) string {
 	}
 }
 
-
 // ScheduleConfirmationTemplate generates a localized confirmation [Message] based on the provided [Header]
 // and [ScheduleConfirmationTemplateOptions].
 //   - It calculates the event hour, determines the correct
@@ -246,6 +245,30 @@ var languageKeywords = map[Lang]genderKeywords{
 		Masculine: []string{"termin"},
 		Feminine:  []string{"sitzung", "besprechung", "konferenz"},
 	},
+	ChineseSimplified: {
+		Masculine: []string{"预约", "活动", "承诺"},
+		Feminine:  []string{"咨询", "会议", "会话", "面试"},
+	},
+	Arabic: {
+		Masculine: []string{"موعد", "حدث", "اجتماع", "لقاء"},
+		Feminine:  []string{"استشارة", "جلسة", "مقابلة"},
+	},
+	Hindi: {
+		Masculine: []string{"कार्यक्रम", "परामर्श", "सत्र", "साक्षात्कार"},
+		Feminine:  []string{"मुलाकात", "बैठक", "मीटिंग"},
+	},
+	Japanese: {
+		Masculine: []string{"予約", "イベント", "約束"},
+		Feminine:  []string{"相談", "会議", "セッション", "面接"},
+	},
+	English: {
+		Masculine: []string{"appointment", "event", "commitment"},
+		Feminine:  []string{"consultation", "meeting", "session", "interview"},
+	},
+	EnglishUK: {
+		Masculine: []string{"appointment", "event", "commitment"},
+		Feminine:  []string{"consultation", "meeting", "session", "interview"},
+	},
 }
 
 // getGenderBasedOnGrammar determines the [Gender] of the given title based on the provided [Lang].
@@ -343,7 +366,6 @@ func NewTimeLayout(lang Lang) (TimeLayout, error) {
 	}
 }
 
-
 // NormalizeDate resets the time components of a [time.Time] to midnight, keeping the location intact.
 func NormalizeDate(date time.Time) time.Time {
 	year, month, day := date.Date()
@@ -411,7 +433,7 @@ func getLocalizedRelativeDay(lang Lang, isToday bool) string {
 	}
 }
 
-// DescribeDate returns a localized relative day description or the exact date fallback, 
+// DescribeDate returns a localized relative day description or the exact date fallback,
 // along with the formatted hour string, based on the [time.Time] and [Lang].
 func DescribeDate(date, now time.Time, lang Lang) (string, string) {
 	dateLayout, timeLayout := getLocalizedFormatLayouts(lang)
@@ -427,7 +449,6 @@ func DescribeDate(date, now time.Time, lang Lang) (string, string) {
 	case 1:
 		dayDescription = getLocalizedRelativeDay(lang, false)
 	default:
-		// Falling back to the exact date format keeps formal notifications professional.
 		dayDescription = date.Format(dateLayout)
 	}
 
