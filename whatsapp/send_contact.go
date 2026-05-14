@@ -68,8 +68,8 @@ func splitContactName(name string) []string {
 }
 
 // splitCamelCase divides a string whenever an uppercase letter follows a lowercase one.
-// Example: "ValRamos" -> ["Val", "Ramos"] or "JoaoSilvaSauro" -> ["Joao", "Silva", "Sauro"].
-// Consecutive uppercase letters are kept together.
+//   - Example: "ValRamos" -> ["Val", "Ramos"] or "JoaoSilvaSauro" -> ["Joao", "Silva", "Sauro"].
+//   - Consecutive uppercase letters are kept together.
 func splitCamelCase(s string) []string {
 	if s == "" {
 		return nil
@@ -93,7 +93,7 @@ func splitCamelCase(s string) []string {
 }
 
 // splitSnakeCase divides a string by underscores, keeping only the non-empty parts.
-// Example: "val_ramos" -> ["val", "ramos"].
+//   - Example: "val_ramos" -> ["val", "ramos"].
 func splitSnakeCase(s string) []string {
 	if s == "" {
 		return nil
