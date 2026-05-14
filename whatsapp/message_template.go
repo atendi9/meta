@@ -1,7 +1,6 @@
 package whatsapp
 
 import (
-	"encoding/json"
 	"io"
 
 	"github.com/atendi9/meta/xhttp"
@@ -85,14 +84,9 @@ func CreateMessageTemplate(
 		AllowCategoryChange: true,
 		Components:          field.Components,
 	}
-
-	b, err := json.Marshal(&body)
-	if err != nil {
-		return err
-	}
 	res, err := api.Post(url, &xhttp.Options{
 		Headers: api.Headers("application/json"),
-		Body:    api.Reader(b),
+		Body:    api.Reader(xjson.Bytes(body)),
 	})
 	if err != nil {
 		return err
