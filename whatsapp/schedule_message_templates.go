@@ -51,17 +51,42 @@ type ScheduleConfirmationTemplateOptions struct {
 	Lang           Lang
 }
 
+// getLocalizedGreeting returns the localized greeting word based on the provided [Lang].
+func getLocalizedGreeting(lang Lang) string {
+	switch lang {
+	case English, EnglishUK:
+		return "Hello"
+	case Spanish:
+		return "Hola"
+	case French:
+		return "Bonjour"
+	case German:
+		return "Hallo"
+	case ChineseSimplified:
+		return "你好"
+	case Arabic:
+		return "مرحباً"
+	case Hindi:
+		return "नमस्ते"
+	case Japanese:
+		return "こんにちは"
+	default:
+		return "Olá"
+	}
+}
+
+
 // ScheduleConfirmationTemplate generates a localized confirmation [Message] based on the provided [Header]
-// and [ScheduleConfirmationTemplateOptions]. It calculates the event hour, determines the correct
-// grammatical gender for the event title, and constructs a JSON payload with the appropriate translations.
-// It appends any provided [scheduleUrls] as text parameters within the template components.
+// and [ScheduleConfirmationTemplateOptions].
+//   - It calculates the event hour, determines the correct
+//     grammatical gender for the event title, and constructs a JSON payload with the appropriate translations.
+//   - It appends any provided [scheduleUrls] as text parameters within the template components.
 func ScheduleConfirmationTemplate(
 	h Header,
 	opts ScheduleConfirmationTemplateOptions,
 ) Message {
-	hour := opts.StartTime.Add(-3 * time.Hour).Format("15:04")
-	dayDescription := "hoje"
-	greeting := "Olá"
+	dayDescription, hour := DescribeDate(opts.StartTime, opts.Now, opts.Lang)
+	greeting := getLocalizedGreeting(opts.Lang)
 
 	gender := getGenderBasedOnGrammar(opts.EventTitle, opts.Lang)
 	var eventRef MsgReference
@@ -316,4 +341,95 @@ func NewTimeLayout(lang Lang) (TimeLayout, error) {
 	default:
 		return "", ErrUnsupportedLanguage
 	}
+}
+
+
+// NormalizeDate resets the time components of a [time.Time] to midnight, keeping the location intact.
+func NormalizeDate(date time.Time) time.Time {
+	year, month, day := date.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, date.Location())
+}
+
+// getLocalizedFormatLayouts returns the date and time layouts separately for a given [Lang].
+func getLocalizedFormatLayouts(lang Lang) (string, string) {
+	switch lang {
+	case English:
+		return "01/02/2006", "03:04 PM"
+	case ChineseSimplified, Japanese:
+		return "2006年01月02日", "15:04"
+	case German:
+		return "02.01.2006", "15:04"
+	default:
+		return "02/01/2006", "15:04"
+	}
+}
+
+// getLocalizedRelativeDay returns the localized relative string for "today" or "tomorrow" based on the [Lang].
+func getLocalizedRelativeDay(lang Lang, isToday bool) string {
+	if isToday {
+		switch lang {
+		case English, EnglishUK:
+			return "today"
+		case Spanish:
+			return "hoy"
+		case French:
+			return "aujourd'hui"
+		case German:
+			return "heute"
+		case ChineseSimplified:
+			return "今天"
+		case Arabic:
+			return "اليوم"
+		case Hindi:
+			return "आज"
+		case Japanese:
+			return "今日"
+		default:
+			return "hoje"
+		}
+	}
+
+	switch lang {
+	case English, EnglishUK:
+		return "tomorrow"
+	case Spanish:
+		return "mañana"
+	case French:
+		return "demain"
+	case German:
+		return "morgen"
+	case ChineseSimplified:
+		return "明天"
+	case Arabic:
+		return "غدًا"
+	case Hindi:
+		return "कल"
+	case Japanese:
+		return "明日"
+	default:
+		return "amanhã"
+	}
+}
+
+// DescribeDate returns a localized relative day description or the exact date fallback, 
+// along with the formatted hour string, based on the [time.Time] and [Lang].
+func DescribeDate(date, now time.Time, lang Lang) (string, string) {
+	dateLayout, timeLayout := getLocalizedFormatLayouts(lang)
+
+	today := NormalizeDate(now)
+	target := NormalizeDate(date)
+	diffDays := int(target.Sub(today).Hours() / 24)
+
+	var dayDescription string
+	switch diffDays {
+	case 0:
+		dayDescription = getLocalizedRelativeDay(lang, true)
+	case 1:
+		dayDescription = getLocalizedRelativeDay(lang, false)
+	default:
+		// Falling back to the exact date format keeps formal notifications professional.
+		dayDescription = date.Format(dateLayout)
+	}
+
+	return dayDescription, date.Format(timeLayout)
 }
