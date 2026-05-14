@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -40,7 +41,11 @@ func TestSendContact_Success(t *testing.T) {
 }
 
 func TestSendContact_InvalidName(t *testing.T) {
-	api := &Client{}
+	api := Default("3333333333", "api_token")
+	api.HttpClient = xhttp.NewMockClient(&http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"message":"Hello World"}`))),
+	}, nil)
 	id, err := api.SendContact("123", "John", "555-5555")
 
 	assert.Error(t, err)
@@ -79,6 +84,53 @@ func TestSendContact_EmptyResponse(t *testing.T) {
 	}
 
 	id, err := api.SendContact("5511999999999", "John Doe", "555-1234")
-	assert.Equal(t, err, ErrMessageNotSent)
+	assert.Equal(t, ErrMessageNotSent, err)
 	assert.Equal(t, "", id)
+}
+
+func TestSplitContactName(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"Empty string", "", nil},
+		{"Only spaces", "   ", nil},
+		{"Standard name", "John Doe", []string{"John", "Doe"}},
+		{"Multiple spaces", " John   Doe ", []string{"John", "Doe"}},
+		{"Camel case name", "JohnDoe", []string{"John", "Doe"}},
+		{"Single word", "John", []string{"John"}},
+		{"Camel case multiple words", "JohnDoeSmith", []string{"John", "Doe", "Smith"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := splitContactName(tc.input)
+			assert.Equal(t, fmt.Sprint(tc.expected), fmt.Sprint(result))
+		})
+	}
+}
+
+func TestSplitCamelCase(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"Empty string", "", nil},
+		{"Standard camel case", "JohnDoe", []string{"John", "Doe"}},
+		{"Multiple camel case words", "JoaoSilvaSauro", []string{"Joao", "Silva", "Sauro"}},
+		{"All lowercase", "john", []string{"john"}},
+		{"All uppercase", "JOHN", []string{"JOHN"}},
+		{"Single character", "A", []string{"A"}},
+		{"Starting with lowercase", "johnDoe", []string{"john", "Doe"}},
+		{"Mixed with consecutive uppercase at end", "ParseXML", []string{"Parse", "XML"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := splitCamelCase(tc.input)
+			assert.Equal(t, fmt.Sprint(tc.expected), fmt.Sprint(result))
+		})
+	}
 }
