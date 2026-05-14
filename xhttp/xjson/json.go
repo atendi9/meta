@@ -28,6 +28,17 @@ func (j JSON) Decode(v any) error {
 
 // String marshals the JSON object with indentation, returning it as a formatted string.
 func (j JSON) String() string {
-	b, _ := json.MarshalIndent(j, "", "  ")
-	return string(b)
+	return String(j)
+}
+
+// String returns a formatted JSON string representation of the provided data with indentation.
+func String(data any) string {
+	return string(Bytes(data))
+}
+
+// Bytes returns an indented JSON byte slice representation of the provided data.
+// It silently ignores any marshaling errors.
+func Bytes(data any) []byte {
+	b, _ := json.MarshalIndent(data, "", "  ")
+	return b
 }
