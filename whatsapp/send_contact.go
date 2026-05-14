@@ -61,6 +61,9 @@ func splitContactName(name string) []string {
 	if camel := splitCamelCase(name); len(camel) >= 2 {
 		return camel
 	}
+	if snake := splitSnakeCase(name); len(snake) >= 2 {
+		return snake
+	}
 	return []string{name}
 }
 
@@ -85,6 +88,22 @@ func splitCamelCase(s string) []string {
 	}
 	if len(current) > 0 {
 		parts = append(parts, string(current))
+	}
+	return parts
+}
+
+// splitSnakeCase divides a string by underscores, keeping only the non-empty parts.
+// Example: "val_ramos" -> ["val", "ramos"].
+func splitSnakeCase(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var parts []string
+	split := strings.Split(s, "_")
+	for _, p := range split {
+		if p != "" {
+			parts = append(parts, p)
+		}
 	}
 	return parts
 }

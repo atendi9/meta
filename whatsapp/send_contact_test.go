@@ -134,3 +134,27 @@ func TestSplitCamelCase(t *testing.T) {
 		})
 	}
 }
+
+func TestSplitSnakeCase(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"Empty string", "", nil},
+		{"Only underscores", "___", nil},
+		{"Standard snake case", "john_doe", []string{"john", "doe"}},
+		{"Multiple snake case words", "joao_silva_sauro", []string{"joao", "silva", "sauro"}},
+		{"Consecutive underscores", "john__doe", []string{"john", "doe"}},
+		{"Leading and trailing underscores", "_john_doe_", []string{"john", "doe"}},
+		{"Mixed case", "John_Doe", []string{"John", "Doe"}},
+		{"Single word without underscores", "john", []string{"john"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := splitSnakeCase(tc.input)
+			assert.Equal(t, fmt.Sprint(tc.expected), fmt.Sprint(result))
+		})
+	}
+}
