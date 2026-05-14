@@ -24,7 +24,10 @@ func TemplateAnalytics(
 // Returns true if the operation was successful.
 func (api *TmplAnalytics) Enable() bool {
 	whats := api.client
-	url := whats.Endpoint(whats.senderID + "?is_enabled_for_insights=true")
+	url := xhttp.SetQueryParams(
+		whats.Endpoint(whats.senderID), 
+		api.queryParam("is_enabled_for_insights", true),
+	)
 	_, err := whats.Post(url, &xhttp.Options{
 		Headers: whats.Headers("application/json"),
 	})
