@@ -21,6 +21,10 @@ type ReplyButton struct {
 // ErrAtLeastOneButtonRequired is returned when trying to send an interactive message without buttons.
 var ErrAtLeastOneButtonRequired = errors.New("at least one button is required")
 
+// ErrTooManyButtons is returned when more than the Meta-allowed number of
+// quick reply buttons (3) is provided.
+var ErrTooManyButtons = errors.New("a maximum of 3 quick reply buttons is allowed")
+
 // SendQuickReplyMessage sends an interactive message containing quick reply buttons.
 func (api *Client) SendQuickReplyMessage(
 	h Header,
@@ -31,7 +35,7 @@ func (api *Client) SendQuickReplyMessage(
 		return "", ErrAtLeastOneButtonRequired
 	}
 	if len(buttons) > 3 {
-		buttons = buttons[:3]
+		return "", ErrTooManyButtons
 	}
 	interactiveType := "interactive"
 	h["type"] = interactiveType

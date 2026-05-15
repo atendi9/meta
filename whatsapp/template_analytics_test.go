@@ -163,6 +163,37 @@ func TestTmplAnalytics_WithInterval_DecodeError(t *testing.T) {
 	assert.Equal(t, (*TmplAnalyticsResponse)(nil), res)
 }
 
+func TestTmplAnalytics_WithInterval_WithPaging(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"data":[]}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := TemplateAnalytics(&Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+			AccessToken: "valid_token",
+		},
+	})
+
+	interval := TmplAnalyticsInterval{
+		Start: time.Now().Add(-24 * time.Hour),
+		End:   time.Now(),
+	}
+	paging := Paging{Cursors: Cursors{After: "after_token"}}
+
+	res, err := api.WithInterval([]string{"tmpl_123"}, interval, paging)
+
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 1, mockClient.Calls)
+	assert.True(t, len(mockClient.Calls[0].URL) > 0)
+	_ = res
+}
+
 func TestTmplAnalytics_urlWithPaging(t *testing.T) {
 	api := TemplateAnalytics(&Client{})
 	baseURL := "https://api.whatsapp.com/v1/analytics"

@@ -23,13 +23,28 @@ func NewRequestError(err error) *RequestError {
 }
 
 // Error implements the standard error interface.
-// It returns the string representation of the decoded JSON payload.
+// If the payload holds a valid JSON object, it returns its formatted
+// representation. Otherwise (e.g. a transport-level error message), it
+// returns the raw payload content so the original message is preserved.
 func (err *RequestError) Error() string {
-	return err.JSON().String()
+	if err.Payload == nil {
+		return ""
+	}
+	raw, _ := io.ReadAll(err.Payload)
+	// Restore the payload so the reader can be consumed again.
+	err.Payload = bytes.NewReader(raw)
+	var payload xjson.JSON
+	if jsonErr := xjson.Decode(bytes.NewReader(raw), &payload); jsonErr == nil {
+		return payload.String()
+	}
+	return string(raw)
 }
 
 // JSON reads the error Payload and decodes it into an [xjson.JSON] object.
 func (err *RequestError) JSON() (payload xjson.JSON) {
+	if err.Payload == nil {
+		return
+	}
 	_ = xjson.Decode(err.Payload, &payload)
 	return
 }

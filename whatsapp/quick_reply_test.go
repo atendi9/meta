@@ -82,7 +82,34 @@ func TestQuickReply(t *testing.T) {
 		assert.Equal(t, "interactive", h["type"])
 	})
 
-	t.Run("SendQuickReplyMessage_TrimToThreeButtons", func(t *testing.T) {
+	t.Run("SendQuickReplyMessage_TooManyButtonsError", func(t *testing.T) {
+		mockClient := xhttp.NewMockClient(nil, nil)
+
+		client := &Client{
+			GraphAPIClient: meta.GraphAPIClient{
+				HttpClient: mockClient,
+			},
+		}
+
+		h := make(Header)
+
+		buttons := []QuickReplyButton{
+			GenerateQuickReplyButton("btn_1", "Option 1"),
+			GenerateQuickReplyButton("btn_2", "Option 2"),
+			GenerateQuickReplyButton("btn_3", "Option 3"),
+			GenerateQuickReplyButton("btn_4", "Option 4"),
+		}
+
+		id, err := client.SendQuickReplyMessage(h, "Enterprise", "Message body", buttons)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrTooManyButtons, err)
+		assert.Equal(t, "", id)
+		// No request should be made when validation fails.
+		assert.LengthSlice(t, 0, mockClient.Calls)
+	})
+
+	t.Run("SendQuickReplyMessage_ThreeButtonsAllowed", func(t *testing.T) {
 		mockRes := &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewBufferString(`{"messages": [{"id": "wamid.12345"}]}`)),
@@ -96,12 +123,11 @@ func TestQuickReply(t *testing.T) {
 		}
 
 		h := make(Header)
-		
+
 		buttons := []QuickReplyButton{
 			GenerateQuickReplyButton("btn_1", "Option 1"),
 			GenerateQuickReplyButton("btn_2", "Option 2"),
 			GenerateQuickReplyButton("btn_3", "Option 3"),
-			GenerateQuickReplyButton("btn_4", "Option 4"),
 		}
 
 		id, err := client.SendQuickReplyMessage(h, "Enterprise", "Message body", buttons)

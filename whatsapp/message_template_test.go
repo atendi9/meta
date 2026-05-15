@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -162,6 +163,46 @@ func TestCreateMessageTemplate_EmptyBody(t *testing.T) {
 
 	err := CreateMessageTemplate(api, fields)
 	assert.NoError(t, err)
+}
+
+// errorReadCloser is an [io.ReadCloser] whose Read always fails, used to
+// exercise the io.ReadAll error path when consuming an HTTP response body.
+type errorReadCloser struct{}
+
+func (errorReadCloser) Read(_ []byte) (int, error) {
+	return 0, errors.New("body read failure")
+}
+
+func (errorReadCloser) Close() error { return nil }
+
+func TestCreateMessageTemplate_BodyReadError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       errorReadCloser{},
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "123",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	fields := TemplateFields{
+		Name:     "simple_utility",
+		Category: UTILITY,
+		Lang:     EnglishUK,
+		Components: []xjson.JSON{
+			{
+				"type": "BODY",
+				"text": "Your order has been shipped.",
+			},
+		},
+	}
+
+	err := CreateMessageTemplate(api, fields)
+	assert.Error(t, err)
 }
 
 func TestDeleteMessageTemplate_Success(t *testing.T) {

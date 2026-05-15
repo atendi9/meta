@@ -74,6 +74,27 @@ func TestAcceptCall(t *testing.T) {
 	assert.Equal(t, expectedURL, mockClient.Calls[0].URL)
 }
 
+func TestAcceptCall_HTTPError(t *testing.T) {
+	mockClient := xhttp.NewMockClient(nil, errors.New("network error"))
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	var logged string
+	emitter := newMockEventEmitter()
+	call := NewCall(api, "app_123", emitter, func(msg string) { logged = msg })
+
+	result := call.AcceptCall("call_abc123", "v=0\r\n...")
+
+	// The call ID is still returned, but the failure must be logged.
+	assert.Equal(t, "call_abc123", result)
+	assert.True(t, len(logged) > 0)
+}
+
 func TestInitiateOutboundCall_Success(t *testing.T) {
 	mockRes := &http.Response{
 		StatusCode: http.StatusOK,
@@ -159,6 +180,26 @@ func TestInitiateOutboundCall_NoIdReturned(t *testing.T) {
 	assert.Equal(t, ErrCannotGetCallId.Error(), err.Error())
 }
 
+func TestInitiateOutboundCall_DecodeError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`not-json`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	call := NewCall(api, "app_123", newMockEventEmitter())
+	_, err := call.InitiateOutboundCall("5511999999999", "v=0\r\n...")
+
+	assert.Error(t, err)
+}
+
 func TestWebhookPreAccept_Ringing(t *testing.T) {
 	mockRes := &http.Response{
 		StatusCode: http.StatusOK,
@@ -189,6 +230,28 @@ func TestWebhookPreAccept_Ringing(t *testing.T) {
 	emittedData := emitter.events["incoming_call"].(xjson.JSON)
 	assert.Equal(t, "app_123", emittedData["appId"])
 	assert.Equal(t, "call_111", emittedData["callId"])
+}
+
+func TestWebhookPreAccept_RingingHTTPError(t *testing.T) {
+	mockClient := xhttp.NewMockClient(nil, errors.New("network error"))
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	var logged string
+	emitter := newMockEventEmitter()
+	call := NewCall(api, "app_123", emitter, func(msg string) { logged = msg })
+
+	call.WebhookPreAccept("call_111", CallData{Status: "ringing"}, "a=setup:actpass")
+
+	// The pre-accept request failed, so no incoming_call event must be emitted.
+	_, ok := emitter.events["incoming_call"]
+	assert.Equal(t, false, ok)
+	assert.True(t, len(logged) > 0)
 }
 
 func TestWebhookPreAccept_Active(t *testing.T) {

@@ -129,3 +129,44 @@ func TestMockClient_Error(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 }
+
+func TestMockClient_MapResponse(t *testing.T) {
+	defaultRes := &http.Response{StatusCode: http.StatusOK}
+	mock := NewMockClient(defaultRes, nil)
+	opts := &Options{}
+
+	mappedURL := "https://api.example.com/v1/users"
+	mappedRes := &http.Response{StatusCode: http.StatusCreated}
+	mappedErr := http.ErrServerClosed
+	mock.MapResponse(http.MethodPost, mappedURL, mappedRes, mappedErr)
+
+	t.Run("returns mapped response for matching method and URL", func(t *testing.T) {
+		res, err := mock.Post(mappedURL, opts)
+		assert.Equal(t, http.StatusCreated, res.StatusCode)
+		assert.Equal(t, mappedErr, err)
+	})
+
+	t.Run("falls back to default response when no mapping matches", func(t *testing.T) {
+		res, err := mock.Get(mappedURL, opts)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("falls back to default when method differs", func(t *testing.T) {
+		res, err := mock.Put(mappedURL, opts)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
+}
+
+func TestMockClient_Clear(t *testing.T) {
+	mock := NewMockClient(&http.Response{StatusCode: http.StatusOK}, nil)
+	opts := &Options{}
+
+	_, _ = mock.Get("https://api.example.com", opts)
+	_, _ = mock.Post("https://api.example.com", opts)
+	assert.LengthSlice(t, 2, mock.Calls)
+
+	mock.Clear()
+	assert.LengthSlice(t, 0, mock.Calls)
+}
