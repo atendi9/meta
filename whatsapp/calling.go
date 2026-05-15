@@ -54,13 +54,18 @@ func (c *Call) AcceptCall(id, answerSdp string) string {
 		"session":           xjson.JSON{"sdp_type": "answer", "sdp": answerSdp},
 	}
 
-	c.api.Post(
+	res, err := c.api.Post(
 		c.api.Endpoint(c.api.senderID+"/calls"),
 		&xhttp.Options{
 			Headers: c.api.Headers("application/json"),
 			Body:    acceptPayload.Buffer(),
 		},
 	)
+	if err != nil {
+		c.logger(fmt.Sprintf(`Failed to accept call %s: %s`, id, err.Error()))
+		return id
+	}
+	res.Body.Close()
 
 	return id
 }
@@ -146,13 +151,18 @@ func (c *Call) WebhookPreAccept(id string, data CallData, sdpPayload string) {
 			"session":           xjson.JSON{"sdp_type": "answer", "sdp": sdpForPreAccept},
 		}
 
-		c.api.Post(
+		res, err := c.api.Post(
 			c.api.Endpoint(c.api.senderID+"/calls"),
 			&xhttp.Options{
 				Headers: c.api.Headers("application/json"),
 				Body:    preAcceptPayload.Buffer(),
 			},
 		)
+		if err != nil {
+			c.logger(fmt.Sprintf(`Failed to pre-accept call %s: %s`, id, err.Error()))
+			return
+		}
+		res.Body.Close()
 
 		c.io.Emit("incoming_call", xjson.JSON{
 			"appId":    c.appId,
