@@ -1,6 +1,10 @@
 package whatsapp
 
-import "github.com/atendi9/meta/xhttp/xjson"
+import (
+	"sort"
+
+	"github.com/atendi9/meta/xhttp/xjson"
+)
 
 // InteractiveListRow represents an individual row item within an interactive list section.
 type InteractiveListRow struct {
@@ -25,11 +29,18 @@ func (api *Client) SendInteractiveList(
 	h Header,
 	opts SendInteractiveListOpts,
 ) (id string, err error) {
+	// Iterate the section titles in a deterministic (sorted) order, since
+	// ranging over a map yields a non-deterministic order between sends.
+	titles := make([]string, 0, len(opts.Rows))
+	for title := range opts.Rows {
+		titles = append(titles, title)
+	}
+	sort.Strings(titles)
 	sections := []xjson.JSON{}
-	for title, rows := range opts.Rows {
+	for _, title := range titles {
 		sections = append(sections, xjson.JSON{
 			"title": title,
-			"rows":  rows,
+			"rows":  opts.Rows[title],
 		})
 	}
 	interactiveType := "interactive"
