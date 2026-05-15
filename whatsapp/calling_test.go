@@ -159,6 +159,26 @@ func TestInitiateOutboundCall_NoIdReturned(t *testing.T) {
 	assert.Equal(t, ErrCannotGetCallId.Error(), err.Error())
 }
 
+func TestInitiateOutboundCall_DecodeError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`not-json`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	call := NewCall(api, "app_123", newMockEventEmitter())
+	_, err := call.InitiateOutboundCall("5511999999999", "v=0\r\n...")
+
+	assert.Error(t, err)
+}
+
 func TestWebhookPreAccept_Ringing(t *testing.T) {
 	mockRes := &http.Response{
 		StatusCode: http.StatusOK,
