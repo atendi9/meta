@@ -205,3 +205,121 @@ func TestDeleteMessageTemplate_Error(t *testing.T) {
 	err := DeleteMessageTemplate(api, "any_template")
 	assert.Error(t, err)
 }
+
+func TestTemplateStatusFuncs(t *testing.T) {
+	assert.Equal(t, status("PENDING"), Pending())
+	assert.Equal(t, status("REJECTED"), Rejected())
+	assert.Equal(t, status("APPROVED"), Aproved())
+}
+
+func TestGetTemplates_Success(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"data": [{"id": "1", "name": "t1", "status": "APPROVED"}]}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "123",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+		},
+	}
+
+	res, err := GetTemplates[TemplateStatus](api, nil)
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 1, res.Data)
+	assert.Equal(t, "1", res.Data[0].Id)
+	assert.Equal(t, "t1", res.Data[0].Name)
+	assert.Equal(t, Aproved(), res.Data[0].Status)
+	assert.LengthSlice(t, 1, mockClient.Calls)
+	assert.Equal(t, http.MethodGet, mockClient.Calls[0].Method)
+}
+
+func TestGetTemplates_HTTPError(t *testing.T) {
+	mockClient := xhttp.NewMockClient(nil, io.ErrUnexpectedEOF)
+
+	api := &Client{
+		senderID: "123",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	res, err := GetTemplates[TemplateStatus](api, nil)
+	assert.Error(t, err)
+	assert.LengthSlice(t, 0, res.Data)
+}
+
+func TestGetTemplates_DecodeError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{invalid json`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "123",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+		},
+	}
+
+	res, err := GetTemplates[TemplateStatus](api, nil)
+	assert.Error(t, err)
+	assert.LengthSlice(t, 0, res.Data)
+}
+
+func TestGetTemplateStatus_Success(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"data": [{"id": "1", "name": "hello_world", "status": "PENDING"}]}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "123",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+		},
+	}
+
+	res, err := GetTemplateStatus(api, "hello_world")
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 1, res.Data)
+	assert.Equal(t, "hello_world", res.Data[0].Name)
+	assert.Equal(t, Pending(), res.Data[0].Status)
+	assert.LengthSlice(t, 1, mockClient.Calls)
+	assert.Equal(t, http.MethodGet, mockClient.Calls[0].Method)
+}
+
+func TestGetJSONTemplates_Success(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"data": [{"name": "template_json", "language": "en_US"}]}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "123",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+		},
+	}
+
+	res, err := GetJSONTemplates(api)
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 1, res.Data)
+	assert.Equal(t, "template_json", res.Data[0]["name"])
+	assert.Equal(t, "en_US", res.Data[0]["language"])
+	assert.LengthSlice(t, 1, mockClient.Calls)
+	assert.Equal(t, http.MethodGet, mockClient.Calls[0].Method)
+}

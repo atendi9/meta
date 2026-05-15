@@ -1,6 +1,7 @@
 package whatsapp
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/atendi9/meta/xhttp"
@@ -113,4 +114,70 @@ func DeleteMessageTemplate(api *Client, name string) error {
 	}
 	defer res.Body.Close()
 	return nil
+}
+
+// Templates represents a generic structure for holding WhatsApp templates data.
+type Templates[T any] struct {
+	Data []T `json:"data"`
+}
+
+// TemplateStatus represents the status information of a WhatsApp template.
+type TemplateStatus struct {
+	Id     string `json:"id"`
+	Name   string `json:"name"`
+	Status status `json:"status"`
+}
+
+// status represents the possible states of a [TemplateStatus].
+type status string
+
+// Pending returns a [status] indicating that the template is pending approval.
+func Pending() status {
+	return "PENDING"
+}
+
+// Rejected returns a [status] indicating that the template has been rejected.
+func Rejected() status {
+	return "REJECTED"
+}
+
+// Aproved returns a [status] indicating that the template has been approved.
+func Aproved() status {
+	return "APPROVED"
+}
+
+// GetTemplateStatus retrieves the [TemplateStatus] for a specific template by its name using the provided [Client].
+//   - It returns a [Templates] containing the [TemplateStatus] data.
+func GetTemplateStatus(client *Client, name string) (Templates[TemplateStatus], error) {
+	return GetTemplates[TemplateStatus](client, &xhttp.Options{
+		QueryParams: []xhttp.HTTPData{
+			&xhttp.Data{Key: "fields", Value: "name,status"},
+			&xhttp.Data{Key: "name", Value: name},
+		},
+		Headers: client.Headers("application/json"),
+	})
+}
+
+// GetJSONTemplates retrieves all message templates as raw [xjson.JSON] data using the provided [Client].
+//   - It returns a [Templates] containing the [xjson.JSON] data.
+func GetJSONTemplates(client *Client) (Templates[xjson.JSON], error) {
+	return GetTemplates[xjson.JSON](client, &xhttp.Options{
+		Headers: client.Headers("application/json"),
+	})
+}
+
+// GetTemplates retrieves a list of message templates using the provided [Client] and [xhttp.Options].
+func GetTemplates[T any](client *Client, options *xhttp.Options) (Templates[T], error) {
+	url := client.Endpoint(client.senderID + "/message_templates")
+	emptySlice := Templates[T]{Data: []T{}}
+	res, err := client.HttpClient.Get(url, options)
+	if err != nil {
+		return emptySlice, err
+	}
+	defer res.Body.Close()
+	var messageTemplates Templates[T]
+	if err := xjson.Decode(res.Body, &messageTemplates); err != nil {
+		return emptySlice, fmt.Errorf("decode error: %v", err)
+	}
+	return messageTemplates, nil
 }
