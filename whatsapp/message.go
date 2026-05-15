@@ -66,7 +66,7 @@ func MessagesEndpointRequest(
 		return SendMessageResponse{}, err
 	}
 
-	if len(response.FirstId()) == 0 {
+	if !response.Ok() {
 		return response, ErrMessageNotSent
 	}
 	return response, nil
@@ -167,4 +167,9 @@ func (m MessagesSent) FirstId() string {
 // SendMessageResponse represents the API response containing the list of sent messages.
 type SendMessageResponse struct {
 	MessagesSent `json:"messages"`
+	Success      bool `json:"success"`
+}
+
+func (r SendMessageResponse) Ok() bool {
+	return len(r.FirstId()) > 0 || r.Success
 }
