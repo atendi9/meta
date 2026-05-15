@@ -132,6 +132,15 @@ func TestSendMessage(t *testing.T) {
 		_, err = MessagesEndpointRequest(client, []byte(`{}`))
 		assert.Error(t, err)
 		assert.Equal(t, "network fail", err.Error())
+
+		mockHTTP.DefaultErr = nil
+		mockHTTP.DefaultResponse = &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(`not-json`)),
+		}
+
+		_, err = MessagesEndpointRequest(client, []byte(`{}`))
+		assert.Error(t, err)
 	})
 
 	t.Run("SendMessage", func(t *testing.T) {
