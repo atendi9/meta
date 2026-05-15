@@ -49,6 +49,11 @@ func (c *Client) SendContact(
 }
 
 // splitContactName splits a name into first/last name resiliently.
+//
+//   - Tries a space split first, then CamelCase, then snake_case.
+//   - A single-word name (e.g. "Beto") is returned as [name, ""] so the
+//     WhatsApp Cloud API still receives a valid first_name; it is never
+//     rejected as invalid. Only an empty/blank name yields nil.
 func splitContactName(name string) []string {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -64,7 +69,7 @@ func splitContactName(name string) []string {
 	if snake := splitSnakeCase(name); len(snake) >= 2 {
 		return snake
 	}
-	return []string{name}
+	return []string{name, ""}
 }
 
 // splitCamelCase divides a string whenever an uppercase letter follows a lowercase one.

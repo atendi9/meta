@@ -46,11 +46,36 @@ func TestSendContact_InvalidName(t *testing.T) {
 		StatusCode: 200,
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"message":"Hello World"}`))),
 	}, nil)
-	id, err := api.SendContact("123", "John", "555-5555")
+	// Only a blank name is invalid; a single-word name is accepted.
+	id, err := api.SendContact("123", "   ", "555-5555")
 
 	assert.Error(t, err)
 	assert.Equal(t, ErrInvalidContactName, err)
 	assert.Equal(t, "", id)
+}
+
+func TestSendContact_SingleWordName(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"messages":[{"id":"wamid_beto"}]}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient:  mockClient,
+			ApiVersion:  "v19.0",
+			BaseUrl:     "https://graph.facebook.com",
+			AccessToken: "valid_token",
+		},
+	}
+
+	// "Beto" has a single word: it must be accepted (first_name="Beto",
+	// last_name=""), not rejected as ErrInvalidContactName.
+	id, err := api.SendContact("5511999999999", "Beto", "+55 11 98888-8888")
+	assert.NoError(t, err)
+	assert.Equal(t, "wamid_beto", id)
 }
 
 func TestSendContact_RequestError(t *testing.T) {
@@ -99,7 +124,9 @@ func TestSplitContactName(t *testing.T) {
 		{"Standard name", "John Doe", []string{"John", "Doe"}},
 		{"Multiple spaces", " John   Doe ", []string{"John", "Doe"}},
 		{"Camel case name", "JohnDoe", []string{"John", "Doe"}},
-		{"Single word", "John", []string{"John"}},
+		{"Single word", "John", []string{"John", ""}},
+		{"Single word real case", "Beto", []string{"Beto", ""}},
+		{"Snake case name", "val_ramos", []string{"val", "ramos"}},
 		{"Camel case multiple words", "JohnDoeSmith", []string{"John", "Doe", "Smith"}},
 	}
 
