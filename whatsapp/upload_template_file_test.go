@@ -126,6 +126,103 @@ func TestGenerateFileHandle_Success(t *testing.T) {
 	assert.LengthSlice(t, 1, mockClient.Calls)
 }
 
+func TestStartUploadSession_DecodeError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`not-json`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	_, err := api.startUploadSession("app_123", "test.pdf", 1024, "application/pdf")
+
+	assert.Error(t, err)
+}
+
+func TestGenerateFileHandle_InvalidFile(t *testing.T) {
+	mockClient := xhttp.NewMockClient(&http.Response{StatusCode: http.StatusOK}, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	// Random bytes resolve to the default content type, which is rejected.
+	fileContent := []byte{0x00, 0x01, 0x02, 0x03, 0x04}
+	session := UploadSession{Id: "session_123"}
+
+	_, err := api.generateFileHandle(session, fileContent, "test.bin")
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidFile)
+}
+
+func TestGenerateFileHandle_RequestError(t *testing.T) {
+	mockClient := xhttp.NewMockClient(nil, errors.New("network down"))
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	pngBytes := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01}
+	session := UploadSession{Id: "session_123"}
+
+	_, err := api.generateFileHandle(session, pngBytes, "image.png")
+
+	assert.Error(t, err)
+}
+
+func TestGenerateFileHandle_DecodeError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`not-json`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	pngBytes := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01}
+	session := UploadSession{Id: "session_123"}
+
+	_, err := api.generateFileHandle(session, pngBytes, "image.png")
+
+	assert.Error(t, err)
+}
+
+func TestUploadTemplateFile_GenerateFileHandleError(t *testing.T) {
+	// The session call succeeds, but the file bytes resolve to the default
+	// content type, so generateFileHandle rejects them with ErrInvalidFile.
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       newReusableBody([]byte(`{"id":"session_123"}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	fileHeader := createMockFileHeader(t, "data.bin", []byte{0x00, 0x01, 0x02, 0x03})
+
+	_, err := UploadTemplateFile(api, "app_123", fileHeader)
+
+	assert.Error(t, err)
+}
+
 func createMockFileHeader(t *testing.T, filename string, content []byte) *multipart.FileHeader {
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
