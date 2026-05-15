@@ -133,3 +133,90 @@ func TestGenerateMediaID_RequestError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "", id)
 }
+
+func TestGenerateMediaID_DecodeError(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`not-json`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	fileContent := bytes.NewReader([]byte("image content"))
+	id, err := api.GenerateMediaID("image/png", "test.png", fileContent)
+
+	assert.Error(t, err)
+	assert.Equal(t, "", id)
+}
+
+func TestGenerateMediaID_FileWriterError(t *testing.T) {
+	api := &Client{senderID: "10987654321"}
+
+	_, err := api.GenerateMediaID("image/png", "test.png", errReader{})
+
+	assert.Error(t, err)
+}
+
+// errReader is an [io.Reader] that always fails, used to exercise the
+// io.Copy error path inside fileWriter.
+type errReader struct{}
+
+func (errReader) Read(_ []byte) (int, error) {
+	return 0, errors.New("read failure")
+}
+
+// failWriter is an [io.Writer] that fails on the Nth Write call (1-indexed),
+// allowing prior calls through. It is used to exercise the multipart writer
+// error branches in fileWriter at precise points.
+type failWriter struct {
+	calls  int
+	failOn int
+}
+
+func (w *failWriter) Write(p []byte) (int, error) {
+	w.calls++
+	if w.calls >= w.failOn {
+		return 0, errors.New("write failure")
+	}
+	return len(p), nil
+}
+
+func TestFileWriter_CopyError(t *testing.T) {
+	api := &Client{}
+	var body bytes.Buffer
+
+	_, err := api.fileWriter(&body, errReader{}, "text/plain", "dummy.txt")
+
+	assert.Error(t, err)
+}
+
+func TestFileWriter_CreatePartError(t *testing.T) {
+	api := &Client{}
+
+	_, err := api.fileWriter(&failWriter{failOn: 1}, bytes.NewReader([]byte("data")), "text/plain", "dummy.txt")
+
+	assert.Error(t, err)
+}
+
+func TestFileWriter_WriteFieldErrors(t *testing.T) {
+	api := &Client{}
+	fileContent := []byte("dummy content")
+
+	// Each subsequent Write call corresponds to a later stage of the multipart
+	// payload: file part, first WriteField, second WriteField, and Close.
+	for _, failOn := range []int{2, 3, 4, 5, 6, 7} {
+		_, err := api.fileWriter(
+			&failWriter{failOn: failOn},
+			bytes.NewReader(fileContent),
+			"text/plain",
+			"dummy.txt",
+		)
+		assert.Error(t, err)
+	}
+}
