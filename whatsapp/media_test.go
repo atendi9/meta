@@ -14,11 +14,18 @@ import (
 )
 
 func TestIsValidMediaUploadType(t *testing.T) {
+	// Every canonical MIME type from Meta's supported-media-types table.
 	validTypes := []string{
 		"image/jpeg", "image/png", "image/webp",
 		"video/mp4", "video/3gpp",
-		"audio/aac", "audio/mpeg", "audio/ogg",
+		"audio/aac", "audio/mp4", "audio/amr", "audio/mpeg", "audio/ogg",
 		"text/plain", "application/pdf",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.ms-powerpoint",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 	}
 	for _, mime := range validTypes {
 		assert.True(t, IsValidMediaUploadType(mime))
@@ -29,15 +36,25 @@ func TestIsValidMediaUploadType(t *testing.T) {
 		"text/html",
 		"image/gif",
 		"invalid/type",
+		// video/3gp is not an official MIME type; only video/3gpp is.
+		"video/3gp",
+		// A type that merely contains a valid one as a substring must fail.
+		"audio/mp4-fake",
 	}
 	for _, mime := range invalidTypes {
 		assert.False(t, IsValidMediaUploadType(mime))
 	}
+
+	// Codec/charset parameters are stripped before the allowlist check.
+	assert.True(t, IsValidMediaUploadType("audio/ogg; codecs=opus"))
 }
 
-func TestIsValidMediaUploadType_CSV(t *testing.T) {
-	// text/csv was missing from the allowlist before the MIME fix.
-	assert.True(t, IsValidMediaUploadType("text/csv"))
+func TestIsValidMediaUploadType_CSVRejected(t *testing.T) {
+	// The WhatsApp Cloud API does not accept text/csv (Meta error 131053).
+	// CSV uploads must be normalized to text/plain before this check.
+	assert.False(t, IsValidMediaUploadType("text/csv"))
+	assert.Equal(t, mimeTextPlain, NormalizeMediaMimeType("text/csv", "data.csv", nil))
+	assert.True(t, IsValidMediaUploadType(NormalizeMediaMimeType("text/csv", "data.csv", nil)))
 }
 
 func TestGetMediaType(t *testing.T) {
@@ -138,6 +155,9 @@ func TestGenerateMediaID_NormalizesMimeType(t *testing.T) {
 		{"mobile opus audio", "audio/opus", "voice.opus", []byte("audio bytes")},
 		{"ffmpeg webm audio", "audio/webm", "out", []byte("audio bytes")},
 		{"3gpp audio", "audio/3gpp", "voice.3gp", []byte("audio bytes")},
+		// CSV is not Meta-accepted: it must upload as text/plain, not be rejected.
+		{"csv by declared type", "text/csv", "data.csv", []byte("a,b,c\n1,2,3")},
+		{"csv by extension only", "application/octet-stream", "data.csv", []byte("a,b,c\n1,2,3")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
