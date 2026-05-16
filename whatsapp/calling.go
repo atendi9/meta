@@ -30,7 +30,7 @@ func NewCall(
 	c *Client,
 	appId string,
 	eventEmitter EventEmitter,
-	logger ...func(data string),
+	logger ...func(message string),
 ) *Call {
 	callingAPI := &Call{
 		api:    c,
@@ -65,7 +65,7 @@ func (c *Call) AcceptCall(id, answerSdp string) string {
 		c.logger(fmt.Sprintf(`Failed to accept call %s: %s`, id, err.Error()))
 		return id
 	}
-	res.Body.Close()
+	drainAndClose(res)
 
 	return id
 }
@@ -162,7 +162,7 @@ func (c *Call) WebhookPreAccept(id string, data CallData, sdpPayload string) {
 			c.logger(fmt.Sprintf(`Failed to pre-accept call %s: %s`, id, err.Error()))
 			return
 		}
-		res.Body.Close()
+		drainAndClose(res)
 
 		c.io.Emit("incoming_call", xjson.JSON{
 			"appId":    c.appId,

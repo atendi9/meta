@@ -159,3 +159,18 @@ func TestSendMessage(t *testing.T) {
 		assert.Equal(t, "sent_ok", res.FirstId())
 	})
 }
+
+func TestSendMessageResponse_Ok(t *testing.T) {
+	// Sending a message: success is confirmed by a returned message id.
+	withID := SendMessageResponse{MessagesSent: MessagesSent{{Id: "msg_1"}}}
+	assert.True(t, withID.Ok())
+
+	// Marking a message as read: the endpoint returns {"success": true}
+	// with no message id, which still counts as success.
+	markedRead := SendMessageResponse{Success: true}
+	assert.True(t, markedRead.Ok())
+
+	// An error envelope decodes into a zero-valued struct: not ok.
+	empty := SendMessageResponse{}
+	assert.False(t, empty.Ok())
+}

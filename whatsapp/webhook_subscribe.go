@@ -32,24 +32,28 @@ func WebhookSubscribe(
 		"pin":               pin.Register,
 	}.Buffer()
 
-	if _, err := whats.Post(registerEndpoint, &xhttp.Options{
+	registerRes, err := whats.Post(registerEndpoint, &xhttp.Options{
 		Headers: whats.Headers("application/json"),
 		Body:    buf,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
+	drainAndClose(registerRes)
 
 	buf = xjson.JSON{
 		"messaging_product": "whatsapp",
 		"pin":               pin.Subscribe,
 	}.Buffer()
 
-	if _, err := whats.Post(subscribeEndpoint, &xhttp.Options{
+	subscribeRes, err := whats.Post(subscribeEndpoint, &xhttp.Options{
 		Headers: whats.Headers("application/json"),
 		Body:    buf,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
+	drainAndClose(subscribeRes)
 
 	return nil
 }

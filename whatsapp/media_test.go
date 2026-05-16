@@ -231,6 +231,30 @@ func TestGenerateMediaID_DecodeError(t *testing.T) {
 	assert.Equal(t, "", id)
 }
 
+func TestGenerateMediaID_MissingID(t *testing.T) {
+	// The Graph API occasionally returns a 2xx with an error envelope and no
+	// media id. That must surface as an error instead of an empty ("", nil).
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"error":{"message":"oops"}}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		senderID: "10987654321",
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	fileContent := bytes.NewReader([]byte("image content"))
+	id, err := api.GenerateMediaID("image/png", "test.png", fileContent)
+
+	assert.Error(t, err)
+	assert.Equal(t, ErrMissingMediaID.Error(), err.Error())
+	assert.Equal(t, "", id)
+}
+
 func TestGenerateMediaID_FileWriterError(t *testing.T) {
 	api := &Client{senderID: "10987654321"}
 

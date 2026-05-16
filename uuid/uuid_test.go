@@ -1,11 +1,24 @@
 package uuid
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/atendi9/capivara/assert"
 )
+
+func TestNewV7_RandReadError(t *testing.T) {
+	original := randRead
+	defer func() { randRead = original }()
+
+	wantErr := errors.New("entropy source unavailable")
+	randRead = func([]byte) (int, error) { return 0, wantErr }
+
+	_, err := NewV7()
+	assert.Error(t, err)
+	assert.Equal(t, wantErr.Error(), err.Error())
+}
 
 func TestNewV7_RFCCompliance(t *testing.T) {
 	id, err := NewV7()

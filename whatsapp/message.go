@@ -170,6 +170,12 @@ type SendMessageResponse struct {
 	Success      bool `json:"success"`
 }
 
+// Ok reports whether the /messages request was accepted by the Meta API.
+//
+// The endpoint serves two operations: sending a message confirms success by
+// returning at least one message id, while marking a message as read returns
+// {"success": true} with no message id. Either signal counts as success; an
+// error envelope decodes into a zero-valued struct and is therefore rejected.
 func (r SendMessageResponse) Ok() bool {
 	return len(r.FirstId()) > 0 || r.Success
 }

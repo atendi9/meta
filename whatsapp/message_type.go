@@ -26,10 +26,8 @@ func NewMessageType(contentType string) MessageType {
 		return Text
 	}
 
-	for k, t := range contentTypes {
-		if k == contentType {
-			return MessageType(t)
-		}
+	if t, ok := contentTypes[contentType]; ok {
+		return MessageType(t)
 	}
 	return Document
 }

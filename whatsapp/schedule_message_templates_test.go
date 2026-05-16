@@ -91,6 +91,22 @@ func TestScheduleTemplates(t *testing.T) {
 		_ = SchedulingTemplate(h, opts)
 	})
 
+	t.Run("SchedulingTemplate invalid timezone falls back to UTC", func(t *testing.T) {
+		opts := SchedulingTemplateOptions{
+			Lang:           PortugueseBrazil,
+			TemplateName:   "template_test",
+			ScheduleLayout: TimeLayoutPT,
+			StartTime:      time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC),
+			Timezone:       "Not/AReal_Zone",
+		}
+
+		h := MessageHeader("55819999999", "template")
+
+		// An invalid timezone must not panic; the template still builds.
+		msg := SchedulingTemplate(h, opts)
+		assert.NotNil(t, msg)
+	})
+
 	t.Run("ScheduleConfirmationTemplate", func(t *testing.T) {
 		urls := ScheduleUrls("https://example.com/cancel", "https://example.com/reschedule")
 
