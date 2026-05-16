@@ -4,6 +4,8 @@ package whatsapp
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 
 	"github.com/atendi9/meta"
@@ -70,6 +72,17 @@ func (c *Client) Endpoint(endpoint string) string {
 func GenerateWhatsappLink(phone, text string) string {
 	escapedText := url.QueryEscape(text)
 	return fmt.Sprintf("https://api.whatsapp.com/send?phone=%s&text=%s", phone, escapedText)
+}
+
+// drainAndClose drains and closes an HTTP response body so the underlying
+// connection can be reused by the keep-alive pool. It tolerates a nil
+// response or a nil body, so callers can invoke it unconditionally.
+func drainAndClose(res *http.Response) {
+	if res == nil || res.Body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, res.Body)
+	_ = res.Body.Close()
 }
 
 // Headers returns a slice of [xhttp.HTTPData] containing the standard headers needed for API requests,
