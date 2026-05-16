@@ -114,30 +114,47 @@ func getMediaType(mimeType string) string {
 	}
 }
 
-// IsValidMediaUploadType checks if the provided mimeType is supported by the WhatsApp API.
-//   - It validates against standard formats such as images (jpeg, png, webp),
-//     videos (mp4, 3gp), audio (aac, mp4, amr, mpeg, ogg), and various documents
-//     (txt, csv, pdf, doc/docx, xls/xlsx, ppt/pptx).
+// validMediaUploadTypes is the exact allowlist of MIME types the WhatsApp
+// Cloud API accepts for media uploads, taken verbatim from Meta's "Supported
+// media types" documentation. Anything else triggers Meta error 131053.
+//
+// Note that text/csv is intentionally absent: Meta does not accept it, so CSV
+// files must be normalized to text/plain by [NormalizeMediaMimeType] first.
+var validMediaUploadTypes = map[string]struct{}{
+	mimeJPEG:      {},
+	mimePNG:       {},
+	mimeWebP:      {},
+	mimeMP4Video:  {},
+	mime3GPPVideo: {},
+	mimeAAC:       {},
+	mimeMP4Audio:  {},
+	mimeAMR:       {},
+	mimeMPEGAudio: {},
+	mimeOGGAudio:  {},
+	mimePDF:       {},
+	mimeMSWord:    {},
+	mimeDocx:      {},
+	mimeMSExcel:   {},
+	mimeXlsx:      {},
+	mimeMSPPoint:  {},
+	mimePptx:      {},
+	mimeTextPlain: {},
+}
+
+// IsValidMediaUploadType reports whether mimeType is accepted by the WhatsApp
+// Cloud API for media uploads.
+//   - It matches the exact canonical MIME types from Meta's supported-media-types
+//     specification: images (jpeg, png, webp), videos (mp4, 3gpp), audio (aac,
+//     mp4, amr, mpeg, ogg) and documents (txt, pdf, doc/docx, xls/xlsx, ppt/pptx).
 //   - Callers should normalize the MIME type via [NormalizeMediaMimeType] first;
 //     this function performs only the final allowlist check.
 func IsValidMediaUploadType(mimeType string) bool {
 	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
-	isValid := func(mimeType, validMimeType string) bool { return strings.Contains(mimeType, validMimeType) }
-	switch {
-	case isValid(mimeType, "image/jpeg"), isValid(mimeType, "image/png"), isValid(mimeType, "image/webp"):
-		return true
-	case isValid(mimeType, "video/mp4"), isValid(mimeType, "video/3gpp"), isValid(mimeType, "video/3gp"):
-		return true
-	case isValid(mimeType, "audio/aac"), isValid(mimeType, "audio/mp4"), isValid(mimeType, "audio/amr"), isValid(mimeType, "audio/mpeg"), isValid(mimeType, "audio/ogg"):
-		return true
-	case isValid(mimeType, "text/plain"), isValid(mimeType, "text/csv"), isValid(mimeType, "application/pdf"),
-		isValid(mimeType, "application/msword"), isValid(mimeType, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-		isValid(mimeType, "application/vnd.ms-excel"), isValid(mimeType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-		isValid(mimeType, "application/vnd.ms-powerpoint"), isValid(mimeType, "application/vnd.openxmlformats-officedocument.presentationml.presentation"):
-		return true
-	default:
-		return false
+	if idx := strings.IndexByte(mimeType, ';'); idx >= 0 {
+		mimeType = strings.TrimSpace(mimeType[:idx])
 	}
+	_, ok := validMediaUploadTypes[mimeType]
+	return ok
 }
 
 // MultipartWriter is a custom wrapper around the standard [multipart.Writer]

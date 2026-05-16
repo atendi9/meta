@@ -28,7 +28,6 @@ const (
 	mimeMSPPoint   = "application/vnd.ms-powerpoint"
 	mimePptx       = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	mimeTextPlain  = "text/plain"
-	mimeCSV        = "text/csv"
 	mimeZip        = "application/zip"
 	mimeGenericBin = "application/octet-stream"
 )
@@ -70,7 +69,9 @@ var extensionMimeTypes = map[string]string{
 	".ppt":  mimeMSPPoint,
 	".pptx": mimePptx,
 	".txt":  mimeTextPlain,
-	".csv":  mimeCSV,
+	// The WhatsApp Cloud API does not accept text/csv; CSV files are uploaded
+	// as text/plain, which it does accept as a document.
+	".csv": mimeTextPlain,
 }
 
 // isGenericMimeType reports whether a MIME type carries no useful information
@@ -159,8 +160,10 @@ func canonicalizeByCategory(base string) string {
 	// Document variants.
 	case "application/x-pdf":
 		return mimePDF
-	case "application/csv", "text/comma-separated-values":
-		return mimeCSV
+	// CSV is not a Meta-accepted MIME type; route every CSV spelling to
+	// text/plain, which the WhatsApp Cloud API accepts as a document.
+	case "text/csv", "application/csv", "text/comma-separated-values":
+		return mimeTextPlain
 	default:
 		return ""
 	}

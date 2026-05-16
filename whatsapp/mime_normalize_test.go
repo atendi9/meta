@@ -66,7 +66,9 @@ func TestNormalizeMediaMimeType_ByExtension(t *testing.T) {
 		{"ppt extension", "application/octet-stream", "deck.ppt", mimeMSPPoint},
 		{"pptx extension", "application/octet-stream", "deck.pptx", mimePptx},
 		{"txt extension", "application/octet-stream", "notes.txt", mimeTextPlain},
-		{"csv extension", "application/octet-stream", "data.csv", mimeCSV},
+		// Meta does not accept text/csv, so .csv normalizes to text/plain.
+		{"csv extension normalizes to text/plain", "application/octet-stream", "data.csv", mimeTextPlain},
+		{"csv extension with text/csv declared type", "text/csv", "data.csv", mimeTextPlain},
 		// Extension wins even over a wrong declared type.
 		{"extension overrides wrong mime", "image/gif", "real.pdf", mimePDF},
 	}
@@ -130,7 +132,10 @@ func TestNormalizeMediaMimeType_ByCategory(t *testing.T) {
 		{"video x-mp4", "video/x-mp4", mimeMP4Video},
 		// Document variants.
 		{"x-pdf alias", "application/x-pdf", mimePDF},
-		{"csv alias", "application/csv", mimeCSV},
+		// CSV is not Meta-accepted: every CSV spelling resolves to text/plain.
+		{"text/csv normalizes to text/plain", "text/csv", mimeTextPlain},
+		{"application/csv normalizes to text/plain", "application/csv", mimeTextPlain},
+		{"comma-separated-values normalizes to text/plain", "text/comma-separated-values", mimeTextPlain},
 		// MIME parameters are stripped before matching.
 		{"ogg with codec param", "audio/ogg; codecs=opus", mimeOGGAudio},
 	}
@@ -146,7 +151,8 @@ func TestNormalizeMediaMimeType_AlreadyCanonical(t *testing.T) {
 	canonical := []string{
 		mimeJPEG, mimePNG, mimeWebP, mimeMP4Video, mime3GPPVideo,
 		mimeAAC, mimeMP4Audio, mimeAMR, mimeMPEGAudio, mimeOGGAudio,
-		mimePDF, mimeTextPlain, mimeCSV,
+		mimePDF, mimeMSWord, mimeDocx, mimeMSExcel, mimeXlsx,
+		mimeMSPPoint, mimePptx, mimeTextPlain,
 	}
 	for _, mt := range canonical {
 		t.Run(mt, func(t *testing.T) {
