@@ -141,9 +141,16 @@ func Rejected() status {
 	return "REJECTED"
 }
 
-// Aproved returns a [status] indicating that the template has been approved.
-func Aproved() status {
+// Approved returns a [status] indicating that the template has been approved.
+func Approved() status {
 	return "APPROVED"
+}
+
+// Aproved returns a [status] indicating that the template has been approved.
+//
+// Deprecated: Aproved is misspelled; use [Approved] instead.
+func Aproved() status {
+	return Approved()
 }
 
 // GetTemplateStatus retrieves the [TemplateStatus] for a specific template by its name using the provided [Client].
