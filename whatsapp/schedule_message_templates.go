@@ -22,7 +22,12 @@ func SchedulingTemplate(
 	h Header,
 	opts SchedulingTemplateOptions,
 ) Message {
-	loc, _ := time.LoadLocation(opts.Timezone)
+	loc, err := time.LoadLocation(opts.Timezone)
+	if err != nil {
+		// An invalid timezone leaves loc nil, and time.Time.In(nil) panics.
+		// Fall back to UTC so the template is still built deterministically.
+		loc = time.UTC
+	}
 	localTime := opts.StartTime.In(loc)
 	m := MessageTemplate(h, xjson.JSON{
 		"name":     opts.TemplateName,
