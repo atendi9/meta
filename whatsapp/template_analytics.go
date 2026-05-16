@@ -28,13 +28,14 @@ func (api *TmplAnalytics) Enable() bool {
 		whats.Endpoint(whats.senderID), 
 		api.queryParam("is_enabled_for_insights", true),
 	)
-	_, err := whats.Post(url, &xhttp.Options{
+	res, err := whats.Post(url, &xhttp.Options{
 		Headers: whats.Headers("application/json"),
 	})
 	if err != nil {
 		return false
 	}
-	return err == nil
+	drainAndClose(res)
+	return true
 }
 
 // TmplAnalyticsInterval defines a time range for analytical queries.
