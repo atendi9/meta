@@ -35,6 +35,11 @@ func TestIsValidMediaUploadType(t *testing.T) {
 	}
 }
 
+func TestIsValidMediaUploadType_CSV(t *testing.T) {
+	// text/csv was missing from the allowlist before the MIME fix.
+	assert.True(t, IsValidMediaUploadType("text/csv"))
+}
+
 func TestGetMediaType(t *testing.T) {
 	assert.Equal(t, "image", getMediaType("image/jpeg"))
 	assert.Equal(t, "video", getMediaType("video/mp4"))
@@ -115,6 +120,57 @@ func TestGenerateMediaID_InvalidMimeType(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "", id)
 	assert.Equal(t, ErrInvalidMimeType, err)
+}
+
+// TestGenerateMediaID_NormalizesMimeType covers the media upload MIME bug:
+// generic, mobile-specific, and transcoder-mangled MIME types must be
+// normalized to a Meta-accepted type instead of being rejected outright.
+func TestGenerateMediaID_NormalizesMimeType(t *testing.T) {
+	tests := []struct {
+		name     string
+		mimeType string
+		filePath string
+		content  []byte
+	}{
+		{"octet-stream pdf by extension", "application/octet-stream", "doc.pdf", []byte("%PDF-1.7")},
+		{"octet-stream pdf by content", "application/octet-stream", "blob", []byte("%PDF-1.7")},
+		{"mobile m4a audio", "audio/x-m4a", "voice.m4a", []byte("audio bytes")},
+		{"mobile opus audio", "audio/opus", "voice.opus", []byte("audio bytes")},
+		{"ffmpeg webm audio", "audio/webm", "out", []byte("audio bytes")},
+		{"3gpp audio", "audio/3gpp", "voice.3gp", []byte("audio bytes")},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRes := &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"id": "media_ok"}`)),
+			}
+			mockClient := xhttp.NewMockClient(mockRes, nil)
+			api := &Client{
+				senderID: "10987654321",
+				GraphAPIClient: meta.GraphAPIClient{
+					HttpClient:  mockClient,
+					ApiVersion:  "v19.0",
+					BaseUrl:     "https://graph.facebook.com",
+					AccessToken: "valid_token",
+				},
+			}
+
+			id, err := api.GenerateMediaID(tc.mimeType, tc.filePath, bytes.NewReader(tc.content))
+
+			assert.NoError(t, err)
+			assert.Equal(t, "media_ok", id)
+		})
+	}
+}
+
+func TestGenerateMediaID_ReadError(t *testing.T) {
+	api := &Client{senderID: "10987654321"}
+
+	id, err := api.GenerateMediaID("image/png", "test.png", errReader{})
+
+	assert.Error(t, err)
+	assert.Equal(t, "", id)
 }
 
 func TestGenerateMediaID_RequestError(t *testing.T) {
