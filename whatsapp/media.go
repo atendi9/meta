@@ -2,6 +2,7 @@
 package whatsapp
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,10 @@ var ErrInvalidMimeType = errors.New("invalid mimeType")
 // GenerateMediaID uploads a media file to the WhatsApp API and returns its ID.
 //   - It reads the file data from an [io.Reader], constructs the multipart form,
 //     and sends an HTTP POST request configured with [xhttp.Options].
+//   - The provided mimeType is normalized via [NormalizeMediaMimeType] before
+//     validation, so generic (application/octet-stream), mobile-specific
+//     (audio/x-m4a, audio/opus), or transcoder-mangled types resolve to a MIME
+//     type the WhatsApp Cloud API accepts.
 //   - On success, it unmarshals the response into a [Media] type and returns the media ID.
 func (api *Client) GenerateMediaID(
 	mimeType string,
@@ -27,13 +32,18 @@ func (api *Client) GenerateMediaID(
 	fileBytes io.Reader,
 ) (string, error) {
 	emptyMediaId := ""
+	content, err := io.ReadAll(fileBytes)
+	if err != nil {
+		return emptyMediaId, err
+	}
+	mimeType = NormalizeMediaMimeType(mimeType, filePath, content)
 	if !IsValidMediaUploadType(mimeType) {
 		return emptyMediaId, ErrInvalidMimeType
 	}
 	media := Media{}
 	url := api.Endpoint(api.senderID + "/media")
 	body := api.Buffer(make([]byte, 0))
-	writer, err := api.fileWriter(body, fileBytes, mimeType, filePath)
+	writer, err := api.fileWriter(body, bytes.NewReader(content), mimeType, filePath)
 	if err != nil {
 		return emptyMediaId, err
 	}
@@ -106,7 +116,10 @@ func getMediaType(mimeType string) string {
 
 // IsValidMediaUploadType checks if the provided mimeType is supported by the WhatsApp API.
 //   - It validates against standard formats such as images (jpeg, png, webp),
-//     videos (mp4, 3gp), audio (aac, mp4, amr, mpeg, ogg), and various documents.
+//     videos (mp4, 3gp), audio (aac, mp4, amr, mpeg, ogg), and various documents
+//     (txt, csv, pdf, doc/docx, xls/xlsx, ppt/pptx).
+//   - Callers should normalize the MIME type via [NormalizeMediaMimeType] first;
+//     this function performs only the final allowlist check.
 func IsValidMediaUploadType(mimeType string) bool {
 	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
 	isValid := func(mimeType, validMimeType string) bool { return strings.Contains(mimeType, validMimeType) }
@@ -117,7 +130,7 @@ func IsValidMediaUploadType(mimeType string) bool {
 		return true
 	case isValid(mimeType, "audio/aac"), isValid(mimeType, "audio/mp4"), isValid(mimeType, "audio/amr"), isValid(mimeType, "audio/mpeg"), isValid(mimeType, "audio/ogg"):
 		return true
-	case isValid(mimeType, "text/plain"), isValid(mimeType, "application/pdf"),
+	case isValid(mimeType, "text/plain"), isValid(mimeType, "text/csv"), isValid(mimeType, "application/pdf"),
 		isValid(mimeType, "application/msword"), isValid(mimeType, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
 		isValid(mimeType, "application/vnd.ms-excel"), isValid(mimeType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
 		isValid(mimeType, "application/vnd.ms-powerpoint"), isValid(mimeType, "application/vnd.openxmlformats-officedocument.presentationml.presentation"):
