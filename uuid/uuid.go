@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+// randRead reads cryptographically secure random bytes. It is a package
+// variable so tests can substitute a failing reader; production code always
+// uses crypto/rand.
+var randRead = rand.Read
+
 // UUID represents a 128-bit Universally Unique Identifier.
 type UUID [16]byte
 
@@ -38,7 +43,7 @@ func NewV7() (UUID, error) {
 	uuid[4] = byte(now >> 8)
 	uuid[5] = byte(now)
 
-	_, err := rand.Read(uuid[6:])
+	_, err := randRead(uuid[6:])
 	if err != nil {
 		return uuid, err
 	}
