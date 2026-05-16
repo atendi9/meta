@@ -18,6 +18,11 @@ import (
 // ErrInvalidMimeType indicates that the provided MIME type is not supported for media uploads.
 var ErrInvalidMimeType = errors.New("invalid mimeType")
 
+// ErrMissingMediaID indicates that the upload response decoded successfully
+// but contained no media ID, which happens when the Graph API returns an
+// error envelope with a 2xx status code.
+var ErrMissingMediaID = errors.New("media upload returned no id")
+
 // GenerateMediaID uploads a media file to the WhatsApp API and returns its ID.
 //   - It reads the file data from an [io.Reader], constructs the multipart form,
 //     and sends an HTTP POST request configured with [xhttp.Options].
@@ -57,6 +62,9 @@ func (api *Client) GenerateMediaID(
 	defer res.Body.Close()
 	if err := xjson.Decode(res.Body, &media); err != nil {
 		return emptyMediaId, err
+	}
+	if media.Id == "" {
+		return emptyMediaId, ErrMissingMediaID
 	}
 
 	return media.Id, nil
