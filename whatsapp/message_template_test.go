@@ -250,7 +250,9 @@ func TestDeleteMessageTemplate_Error(t *testing.T) {
 func TestTemplateStatusFuncs(t *testing.T) {
 	assert.Equal(t, status("PENDING"), Pending())
 	assert.Equal(t, status("REJECTED"), Rejected())
-	assert.Equal(t, status("APPROVED"), Aproved())
+	assert.Equal(t, status("APPROVED"), Approved())
+	// Aproved is the deprecated misspelled alias and must stay equivalent.
+	assert.Equal(t, Approved(), Aproved())
 }
 
 func TestGetTemplates_Success(t *testing.T) {
