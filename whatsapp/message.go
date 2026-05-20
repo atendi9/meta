@@ -27,8 +27,11 @@ func MessageHeader(
 		"type":              msgType,
 	}
 	if len(replyId) > 0 {
-		header["context"] = xjson.JSON{
-			"message_id": replyId[0],
+		messageId := replyId[0]
+		if len(messageId) > 0 {
+			header["context"] = xjson.JSON{
+				"message_id": messageId,
+			}
 		}
 	}
 	return header
