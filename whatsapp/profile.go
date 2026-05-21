@@ -48,7 +48,7 @@ type InfoData struct {
 // Info retrieves the business profile information and returns an [InfoData].
 //   - It fetches details including the about text, address, description, email, profile picture URL, websites, and vertical.
 func (p *Profile) Info(accountName string) (InfoData, error) {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	fields := "about,address,description,email,profile_picture_url,websites,vertical"
 	fieldsQueryParam := &xhttp.Data{Key: "fields", Value: fields}
 
@@ -95,7 +95,7 @@ func (p *Profile) ChangeProfilePicture(
 	}
 
 	fileHandleId := fileHandle.Id
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product":      "whatsapp",
 		"profile_picture_handle": fileHandleId,
@@ -116,7 +116,7 @@ func (p *Profile) ChangeProfilePicture(
 
 // ChangeAbout updates the "about" text of the business profile.
 func (p *Profile) ChangeAbout(about string) error {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"about":             about,
@@ -131,7 +131,7 @@ func (p *Profile) ChangeAbout(about string) error {
 
 // ChangeDescription updates the description of the business profile.
 func (p *Profile) ChangeDescription(description string) error {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"description":       description,
@@ -146,7 +146,7 @@ func (p *Profile) ChangeDescription(description string) error {
 
 // ChangeWebsites updates the list of websites associated with the business profile.
 func (p *Profile) ChangeWebsites(websites []string) error {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"websites":          websites,
@@ -161,7 +161,7 @@ func (p *Profile) ChangeWebsites(websites []string) error {
 
 // ChangeEmail updates the contact email of the business profile.
 func (p *Profile) ChangeEmail(email string) error {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"email":             email,
@@ -176,7 +176,7 @@ func (p *Profile) ChangeEmail(email string) error {
 
 // ChangeAddress updates the physical address of the business profile.
 func (p *Profile) ChangeAddress(address string) error {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"address":           address,
@@ -191,7 +191,7 @@ func (p *Profile) ChangeAddress(address string) error {
 
 // ChangeVertical updates the industry vertical category of the business profile using a [ProfileVertical].
 func (p *Profile) ChangeVertical(vertical ProfileVertical) error {
-	url := p.client.Endpoint(p.PhoneNumberID + "/business_profile")
+	url := p.client.Endpoint(p.PhoneNumberID + "/whatsapp_business_profile")
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"vertical":          vertical,
