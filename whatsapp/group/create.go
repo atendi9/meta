@@ -3,7 +3,6 @@
 package group
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/atendi9/meta/whatsapp"
@@ -41,7 +40,6 @@ func Create(
 	def Definition,
 ) (*http.Response, error) {
 	url := api.Endpoint(api.SenderID() + "/groups")
-	fmt.Println(url)
 	res, err := api.Post(url, &xhttp.Options{
 		Headers: api.Headers("application/json"),
 		Body: xjson.JSON{
