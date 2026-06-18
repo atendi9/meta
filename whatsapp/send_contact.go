@@ -11,8 +11,9 @@ import (
 // ErrInvalidContactName is returned when the contact name does not contain at least a first and last name.
 var ErrInvalidContactName = errors.New("invalid contact name")
 
-// SendContact sends a contact card to a specific WhatsApp number.
+// SendContact sends a contact card to a specific WhatsApp recipient.
 //
+//   - The receiverNumber may be a phone number or a BSUID; see [SetRecipient] for routing.
 //   - It uses [xjson.JSON] to construct the request body and interacts with the WhatsApp Messages API.
 //   - Returns the message ID or an error if the validation or the [MessagesEndpointRequest] fails.
 func (c *Client) SendContact(
@@ -26,7 +27,6 @@ func (c *Client) SendContact(
 	}
 	body := xjson.JSON{
 		"messaging_product": "whatsapp",
-		"to":                receiverNumber,
 		"type":              "contacts",
 		"contacts": []xjson.JSON{
 			{
@@ -42,9 +42,10 @@ func (c *Client) SendContact(
 				},
 			},
 		},
-	}.Bytes()
+	}
+	SetRecipient(body, receiverNumber)
 
-	res, err := MessagesEndpointRequest(c, body)
+	res, err := MessagesEndpointRequest(c, body.Bytes())
 	return res.FirstId(), err
 }
 

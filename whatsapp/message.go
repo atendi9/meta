@@ -14,7 +14,12 @@ type Header = xjson.JSON
 type Message = xjson.JSON
 
 // MessageHeader creates a basic [Header] for a WhatsApp message.
-// It sets the recipient number, message type, and optionally a reply context if replyId is provided.
+// It sets the recipient, message type, and optionally a reply context if replyId is provided.
+//
+// The receiverNumber may be a phone number or a BSUID (for example
+// "US.13491208655302741918"). A BSUID is routed to the "recipient" field while
+// a phone number keeps using "to", so existing callers need no payload change.
+// See [SetRecipient] for the routing rules.
 func MessageHeader(
 	receiverNumber string,
 	msgType string,
@@ -23,9 +28,9 @@ func MessageHeader(
 	header := xjson.JSON{
 		"messaging_product": "whatsapp",
 		"recipient_type":    "individual",
-		"to":                receiverNumber,
 		"type":              msgType,
 	}
+	SetRecipient(header, receiverNumber)
 	if len(replyId) > 0 {
 		messageId := replyId[0]
 		if len(messageId) > 0 {
