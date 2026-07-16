@@ -3,10 +3,12 @@ package whatsapp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/atendi9/capivara/assert"
@@ -103,6 +105,45 @@ func TestStartUploadSession_Error(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// headerValue returns the value of the named header recorded in the call, or an
+// empty string when the call carries no such header.
+func headerValue(call xhttp.Call, key string) string {
+	for _, header := range call.Options.H() {
+		if data := header.Data(); data.Key == key {
+			if value, ok := data.Value.(string); ok {
+				return value
+			}
+			return fmt.Sprint(data.Value)
+		}
+	}
+	return ""
+}
+
+// queryParamValue returns the value of the named query param recorded in the
+// call, or an empty string when the call carries no such param.
+func queryParamValue(call xhttp.Call, key string) string {
+	for _, param := range call.Options.Q() {
+		if data := param.Data(); data.Key == key {
+			return fmt.Sprint(data.Value)
+		}
+	}
+	return ""
+}
+
+// callBody drains and returns the request body recorded in the call.
+func callBody(t *testing.T, call xhttp.Call) []byte {
+	t.Helper()
+	body, err := io.ReadAll(call.Options.B())
+	assert.NoError(t, err)
+	return body
+}
+
+// pngBytes is a minimal PNG: the 8-byte signature followed by an IHDR chunk.
+var pngBytes = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+// jpegBytes is a minimal JPEG: the SOI marker followed by an APP0/JFIF segment.
+var jpegBytes = []byte("\xFF\xD8\xFF\xE0\x00\x10JFIF\x00")
+
 func TestGenerateFileHandle_Success(t *testing.T) {
 	mockRes := &http.Response{
 		StatusCode: http.StatusOK,
@@ -116,14 +157,71 @@ func TestGenerateFileHandle_Success(t *testing.T) {
 		},
 	}
 
-	fileContent := []byte("testandooo")
 	session := UploadSession{Id: "session_123"}
 
-	handle, err := api.generateFileHandle(session, fileContent, "test.txt")
+	handle, err := api.generateFileHandle(session, jpegBytes, "image/jpeg")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "hash_xyz789", handle.H)
 	assert.LengthSlice(t, 1, mockClient.Calls)
+}
+
+// TestGenerateFileHandle_SendsRawBody covers the contract of Meta's Resumable
+// Upload API: the body is the file's bytes and nothing else. Wrapping them in a
+// multipart envelope still yields a handle, because Meta does not inspect the
+// content at this step, and every later use of that handle fails.
+func TestGenerateFileHandle_SendsRawBody(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"h": "hash_xyz789"}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	session := UploadSession{Id: "session_123"}
+
+	_, err := api.generateFileHandle(session, jpegBytes, "image/jpeg")
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 1, mockClient.Calls)
+
+	call := mockClient.Calls[0]
+	body := callBody(t, call)
+	assert.Equal(t, true, bytes.Equal(jpegBytes, body))
+
+	contentType := headerValue(call, "Content-Type")
+	assert.Equal(t, "image/jpeg", contentType)
+	assert.Equal(t, false, strings.Contains(contentType, "multipart/"))
+	assert.Equal(t, "0", headerValue(call, "file_offset"))
+}
+
+// TestGenerateFileHandle_PreservesRealMimeType guards against announcing a
+// class default instead of the file's own type: with a raw body the
+// Content-Type is the only type Meta sees, so labeling a PNG as image/jpeg
+// makes it reject the handle later.
+func TestGenerateFileHandle_PreservesRealMimeType(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"h": "hash_xyz789"}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	session := UploadSession{Id: "session_123"}
+
+	_, err := api.generateFileHandle(session, pngBytes, "image/png")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "image/png", headerValue(mockClient.Calls[0], "Content-Type"))
 }
 
 func TestStartUploadSession_DecodeError(t *testing.T) {
@@ -153,14 +251,20 @@ func TestGenerateFileHandle_InvalidFile(t *testing.T) {
 		},
 	}
 
-	// Random bytes resolve to the default content type, which is rejected.
+	// Bytes that resolve to no accepted MIME type are rejected before any
+	// request is made.
 	fileContent := []byte{0x00, 0x01, 0x02, 0x03, 0x04}
 	session := UploadSession{Id: "session_123"}
 
-	_, err := api.generateFileHandle(session, fileContent, "test.bin")
+	_, err := api.generateFileHandle(
+		session,
+		fileContent,
+		resolveUploadMimeType("test.bin", fileContent),
+	)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidFile)
+	assert.LengthSlice(t, 0, mockClient.Calls)
 }
 
 func TestGenerateFileHandle_RequestError(t *testing.T) {
@@ -172,12 +276,12 @@ func TestGenerateFileHandle_RequestError(t *testing.T) {
 		},
 	}
 
-	pngBytes := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01}
 	session := UploadSession{Id: "session_123"}
 
-	_, err := api.generateFileHandle(session, pngBytes, "image.png")
+	_, err := api.generateFileHandle(session, pngBytes, "image/png")
 
 	assert.Error(t, err)
+	assert.Equal(t, false, errors.Is(err, ErrInvalidFile))
 }
 
 func TestGenerateFileHandle_DecodeError(t *testing.T) {
@@ -193,12 +297,12 @@ func TestGenerateFileHandle_DecodeError(t *testing.T) {
 		},
 	}
 
-	pngBytes := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01}
 	session := UploadSession{Id: "session_123"}
 
-	_, err := api.generateFileHandle(session, pngBytes, "image.png")
+	_, err := api.generateFileHandle(session, pngBytes, "image/png")
 
 	assert.Error(t, err)
+	assert.Equal(t, false, errors.Is(err, ErrInvalidFile))
 }
 
 func TestUploadTemplateFile_GenerateFileHandleError(t *testing.T) {
@@ -221,6 +325,72 @@ func TestUploadTemplateFile_GenerateFileHandleError(t *testing.T) {
 	_, err := UploadTemplateFile(api, "app_123", fileHeader)
 
 	assert.Error(t, err)
+}
+
+// TestUploadTemplateFile_SessionAndUploadAgree covers a routine mislabel: a
+// browser derives a file's declared type from its name, so a PNG saved as
+// .jpeg arrives named .jpeg. The session's file_type and the upload's
+// Content-Type must still describe the same thing, and it must be what the
+// bytes actually are, since Meta validates the handle against them.
+func TestUploadTemplateFile_SessionAndUploadAgree(t *testing.T) {
+	mockRes := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       newReusableBody([]byte(`{"id": "session_123", "h": "hash_abc"}`)),
+	}
+	mockClient := xhttp.NewMockClient(mockRes, nil)
+
+	api := &Client{
+		GraphAPIClient: meta.GraphAPIClient{
+			HttpClient: mockClient,
+		},
+	}
+
+	fileHeader := createMockFileHeader(t, "picture.jpeg", pngBytes)
+
+	_, err := UploadTemplateFile(api, "app_123", fileHeader)
+	assert.NoError(t, err)
+	assert.LengthSlice(t, 2, mockClient.Calls)
+
+	sessionType := queryParamValue(mockClient.Calls[0], "file_type")
+	uploadType := headerValue(mockClient.Calls[1], "Content-Type")
+
+	assert.Equal(t, "image/png", sessionType)
+	assert.Equal(t, "image/png", uploadType)
+}
+
+// TestResolveUploadMimeType covers the two signals the resolver combines: exact
+// image magic bytes, which outrank a lying extension, and the extension itself,
+// which is the only thing that can tell apart formats whose bytes are
+// ambiguous or that no sniffer recognizes.
+func TestResolveUploadMimeType(t *testing.T) {
+	zipHeader := []byte("PK\x03\x04")
+	testCases := []struct {
+		name     string
+		fileName string
+		content  []byte
+		expected string
+	}{
+		{"jpeg", "photo.jpeg", jpegBytes, "image/jpeg"},
+		{"png", "shot.png", pngBytes, "image/png"},
+		{"png named jpeg", "photo.jpeg", pngBytes, "image/png"},
+		{"jpeg named png", "photo.png", jpegBytes, "image/jpeg"},
+		{"pdf", "report.pdf", []byte("%PDF-1.7\n"), "application/pdf"},
+		{
+			"docx",
+			"contract.docx",
+			append(zipHeader, []byte("word/document.xml")...),
+			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		},
+		{"text", "notes.txt", []byte("Hello World"), "text/plain"},
+		{"unknown", "data.bin", []byte{0x00, 0x01, 0x02, 0x03}, ""},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			mimeType := resolveUploadMimeType(testCase.fileName, testCase.content)
+			assert.Equal(t, testCase.expected, mimeType)
+		})
+	}
 }
 
 func createMockFileHeader(t *testing.T, filename string, content []byte) *multipart.FileHeader {

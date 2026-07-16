@@ -5,10 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"mime/multipart"
-	"net/http"
-	"path/filepath"
 
 	"github.com/atendi9/meta/xhttp"
 	"github.com/atendi9/meta/xhttp/xjson"
@@ -43,10 +40,9 @@ func UploadTemplateFile(
 		return UploadedTemplateFile{}, err
 	}
 	var (
-		fileName  = mediaFile.Filename
-		fileSize  = len(fileBytes)
-		extension = filepath.Ext(fileName)
-		mimeType  = mime.TypeByExtension(extension)
+		fileName = mediaFile.Filename
+		fileSize = len(fileBytes)
+		mimeType = resolveUploadMimeType(fileName, fileBytes)
 	)
 
 	session, err := client.startUploadSession(
@@ -59,11 +55,9 @@ func UploadTemplateFile(
 		return UploadedTemplateFile{}, err
 	}
 
-	fileHandle, err := client.generateFileHandle(
-		session,
-		fileBytes,
-		fileName,
-	)
+	// The session and the upload must announce the same type: Meta records the
+	// session's file_type and validates it against the bytes it receives.
+	fileHandle, err := client.generateFileHandle(session, fileBytes, mimeType)
 	if err != nil {
 		return UploadedTemplateFile{}, err
 	}
@@ -121,43 +115,50 @@ type UploadedFileHandle struct {
 	H string `json:"h"`
 }
 
-// ErrInvalidFile is returned when the content type of the provided file
-// bytes cannot be properly detected or resolves to the default content type.
+// resolveUploadMimeType determines the MIME type to announce for a file that is
+// being uploaded, from its name and its bytes.
+//
+// The file name alone is not trustworthy: browsers derive a file's declared type
+// from its extension, so a mislabeled name makes the upload announce a type the
+// bytes contradict, and Meta rejects it. The bytes alone are not enough either,
+// since magic numbers cannot tell a .xls from a .ppt. So the extension resolves
+// the type, and an exact image signature overrides it.
+func resolveUploadMimeType(fileName string, content []byte) string {
+	if magic := imageMagicMimeType(content); magic != "" {
+		return magic
+	}
+	return NormalizeMediaMimeType("", fileName, content)
+}
+
+// ErrInvalidFile is returned when the provided file bytes do not resolve to a
+// MIME type the WhatsApp Cloud API accepts for uploads.
 var ErrInvalidFile = errors.New("invalid file")
 
 // generateFileHandle uploads the file's binary content using an existing [UploadSession].
 // It returns an [UploadedFileHandle] which contains the file hash necessary to use
 // the media in WhatsApp templates.
+//
+// The Resumable Upload API expects the raw bytes as the request body (the doc's
+// curl uses --data-binary), not a multipart envelope: Meta stores whatever the
+// body carries and later validates it by magic number, so an envelope makes the
+// upload succeed and every later use of the handle fail.
 func (c *Client) generateFileHandle(
 	session UploadSession,
 	fileContent []byte,
-	fileName string,
+	mimeType string,
 ) (UploadedFileHandle, error) {
-	url := c.Endpoint(session.Id)
-	body := c.Buffer(make([]byte, 0))
-	mt := NewMessageType(http.DetectContentType(fileContent))
-	mimeType := MimeTypeWithMessageType(mt)
-	if mimeType == DefaultContentType {
+	if !IsValidMediaUploadType(mimeType) {
 		return UploadedFileHandle{}, ErrInvalidFile
 	}
-	writer, err := c.fileWriter(
-		body,
-		bytes.NewReader(fileContent),
-		mimeType,
-		GenerateFileName(fileName),
-	)
-	if err != nil {
-		return UploadedFileHandle{}, err
-	}
-	headers := c.Headers(writer.FormDataContentType())
-	headers = append(headers, &xhttp.Header{
+	url := c.Endpoint(session.Id)
+	headers := append(c.Headers(mimeType), &xhttp.Header{
 		Key:   "file_offset",
 		Value: 0,
 	})
 
 	res, err := c.Post(url, &xhttp.Options{
 		Headers: headers,
-		Body:    body,
+		Body:    bytes.NewReader(fileContent),
 	})
 	if err != nil {
 		return UploadedFileHandle{}, err

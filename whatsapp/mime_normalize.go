@@ -225,6 +225,29 @@ func sniffWithStdlib(content []byte) string {
 	return ""
 }
 
+// imageMagicMimeType returns the canonical image MIME type carried by content's
+// magic bytes, or an empty string when content is not one of the image formats
+// the WhatsApp Cloud API accepts.
+//
+// Image signatures are exact, so a hit here is worth more than the file
+// extension: browsers derive a file's declared type from its name, so a PNG
+// saved as .jpeg is a routine mislabel, and Meta validates an uploaded image
+// against its bytes rather than its name. Formats whose signature is ambiguous
+// (legacy Compound File, ZIP) are deliberately absent, since only the extension
+// can tell those apart.
+func imageMagicMimeType(content []byte) string {
+	switch {
+	case hasPrefix(content, []byte("\xFF\xD8\xFF")):
+		return mimeJPEG
+	case hasPrefix(content, []byte("\x89PNG\r\n\x1a\n")):
+		return mimePNG
+	case isRIFFWebP(content):
+		return mimeWebP
+	default:
+		return ""
+	}
+}
+
 // hasPrefix reports whether b starts with the given prefix.
 func hasPrefix(b, prefix []byte) bool {
 	return len(b) >= len(prefix) && bytes.Equal(b[:len(prefix)], prefix)
